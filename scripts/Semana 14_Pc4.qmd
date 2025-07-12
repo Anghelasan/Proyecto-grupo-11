@@ -1,0 +1,493 @@
+---
+title: "Semana 14_ PC4"
+format: html
+editor: visual
+---
+
+# `INTEGRANTES: GRUPO 11 SEMANA 14`
+
+1.- SÁNCHEZ DE LA CRUZ, ANGHELA BRICEL
+
+2.- MORALES HERRERA ROSMERY
+
+# **`INSTALAR PAQUETE:`**
+
+```{r}
+install.packages("mice")
+install.packages("ggmice")
+```
+
+```{r}
+library(mice)
+library(tidyverse)
+library(here)
+library(rio)
+library(ggmice)
+library(gtsummary)
+```
+
+# **`INTRODUCCIÓN:`**
+
+**Datos faltantes en investigación en salud:** En el ámbito de la investigación en salud, es frecuente enfrentar la presencia de datos faltantes en los conjuntos de datos. Por ejemplo, al recopilar información de historias clínicas en hospitales, puede ocurrir que algunas variables no estén registradas porque no se midieron, no se documentaron o simplemente no se solicitaron durante la atención médica. De manera similar, en estudios basados en encuestas, es habitual que algunos participantes omitan respuestas a ciertas preguntas o que las respuestas proporcionadas sean ambiguas o no interpretable.
+
+**Limitaciones del análisis de casos completos:**
+
+-   **Pérdida de información:** Al eliminar observaciones incompletas, se reduce el tamaño de la muestra, lo que puede disminuir la potencia estadística del estudio.
+
+-   **Sesgo potencial:** Si los datos faltantes no son completamente aleatorios, el análisis de casos completos puede introducir sesgos en los resultados, afectando la validez de las conclusiones.
+
+-   **No aprovecha toda la información disponible:** Se descartan datos útiles de variables no faltantes en registros incompletos.
+
+**Imputación de datos:** es una técnica utilizada para manejar los valores faltantes en un conjunto de datos, buscando estimar y reemplazar esos valores ausentes con base en la información disponible, en lugar de simplemente eliminar las observaciones incompletas. Esto permite aprovechar al máximo la información recolectada y evitar la pérdida de datos que puede afectar la validez y potencia de los análisis estadísticos.
+
+***Existen dos grandes tipos de imputación:***
+
+-   **Imputación simple:** Consiste en reemplazar cada dato faltante con un único valor estimado. Las técnicas más comunes incluyen:
+
+    -   Imputación por la media o mediana: se sustituyen los valores faltantes por la media o mediana de la variable.
+
+    -   Imputación por regresión: se predicen los valores faltantes mediante un modelo de regresión basado en otras variables correlacionadas.
+
+    -   Imputación hot-deck o k-vecinos más cercanos (kNN): se reemplazan los valores faltantes con valores de observaciones "similares" o cercanas.
+
+-   **Imputación múltiple:** Es un método más sofisticado que genera varias imputaciones diferentes para los datos faltantes, reflejando la incertidumbre en la estimación. Un ejemplo popular es el algoritmo MICE (Imputación Múltiple por Ecuaciones Encadenadas), que itera modelos de regresión para cada variable con datos faltantes, utilizando la información de las demás variables para hacer predicciones más precisas.
+
+# **`El dataset para este ejercicio:`**
+
+Para ilustrar el proceso de imputación múltiple de datos, utilizaremos el conjunto de datos `data_cirrosis`. Este dataset incluye información de:
+
+-   Pacientes: 418 pacientes
+
+-   Variables que la comprenden: Edad, sexo (Hombre o mujer), Albumina, Bilirrubina, Cobre, Colesterol, SGOT, Trigliceridos, Ascitis, entre otras.
+
+-   Entonces ¿Qué sucede?:Algunos participantes presentan valores faltantes en al menos una de estas variables.
+
+**DATA CIRROSIS:**
+
+```{r}
+data_cirrosis <- import(here("data", "cirrosis.csv"))
+```
+
+```{r}
+head(data_cirrosis)
+```
+
+# **`Realizando la imputación`**
+
+Es importante saber en qué variables se encuentran los datos antes de iniciar la inputación. Una forma rápida es usando la función `colSums()` es `is.na()`.
+
+1\. **`is.na()`**
+
+-   **¿Qué hace?:** La función **`is.na()`** identifica los valores faltantes (**`NA`**) en un objeto (vector, matriz, data frame, etc.). Devuelve un objeto lógico (TRUE/FALSE) del mismo tamaño, donde **`TRUE`** indica que el valor es **`NA`**.
+
+-   **Ejemplo:**
+
+    ```{r}
+    x <- c(1, NA, 3, NA, 5) is.na(x) # Resultado: FALSE  TRUE FALSE  TRUE FALSE 
+    ```
+
+2\. **`colSums()`**
+
+-   **¿Qué hace?:** La función **`colSums()`** calcula la suma de cada columna de una matriz o data frame numérico. Es muy útil para resumir datos por columna.
+
+-   **Ejemplo:**
+
+    ```{r}
+    mat <- matrix(1:9, nrow = 3) colSums(mat) # Resultado: 12 15 18 
+    ```
+
+***Uso combinado para contar datos faltantes por columna***
+
+Una aplicación común es contar cuántos valores faltantes (**`NA`**) hay en cada columna de un data frame:
+
+```{r}
+# Supongamos un data frame con NAs df <- data.frame(   A = c(1, NA, 3),   B = c(NA, NA, 6),   C = c(7, 8, 9) )  # Contar NAs por columna na_por_columna <- colSums(is.na(df)) print(na_por_columna) # Resultado: #  A  B  C  #  1  2  0 
+```
+
+-   Primero, **`is.na(df)`** crea una matriz lógica con TRUE donde hay NAs.
+
+-   Luego, **`colSums()`** suma los valores TRUE (que se interpretan como 1) en cada columna, dando el conteo de valores faltantes.
+
+**Probemos con la DATA CIRROSIS:**
+
+```{r}
+colSums(is.na(data_cirrosis))
+```
+
+# `USANDO PLOT_PATTERN PARA VISUALIZAR DATOS PERDIDOS`
+
+`plot_pattern()` de **ggmice**: La función **`plot_pattern()`** es una herramienta muy útil para visualizar patrones de datos faltantes en un conjunto de datos, especialmente cuando se trabaja con imputación múltiple usando el paquete **`mice`** o su extensión **`ggmice`**.
+
+**¿Qué hace `plot_pattern()`?**
+
+-   **Visualiza la estructura de datos faltantes** en un data frame o tibble.
+
+-   Muestra qué variables tienen valores faltantes y cómo se combinan estos valores ausentes entre las observaciones.
+
+-   Permite identificar patrones comunes de ausencia, lo cual es clave para decidir la estrategia de imputación.
+
+**Características principales:**
+
+-   **Entrada:** Un data frame o tibble con datos, que puede contener valores **`NA`**.
+
+-   **Salida:** Un gráfico tipo matriz donde:
+
+    -   Las filas representan patrones de observaciones (casos).
+
+    -   Las columnas representan variables.
+
+    -   Las celdas indican si el dato está presente o ausente.
+
+-   Opciones para personalizar la visualización, como:
+
+    -   **`square = TRUE`**: para que las celdas sean cuadradas y visualmente uniformes.
+
+    -   **`rotate = TRUE`**: rota el gráfico para mejorar la legibilidad, especialmente con muchas variables.
+
+```{r}
+data_cirrosis |>
+  select( 
+      Edad,
+      Sexo,
+      Albumina,
+      Bilirrubina,
+      Cobre,
+      Colesterol,
+      SGOT,
+      Trigliceridos,
+      Ascitis
+    ) |>
+  ggmice::plot_pattern(
+    square = TRUE,
+    rotate = TRUE
+  )
+```
+
+El número total de valores perdidos en el dataset data_cirrosis es de 590. Las variables `Ascitis`, `Cobre` , `Colesterol, SGOT` Y `Trigliceridos` tienen 106, 108, 134, 106 y 136 valores perdidos, respectivamente. Hay 2 pacientes quienes tienen valores perdidos en dos o varias variables.
+
+# `Comparación de participantes con y sin valores perdidos`
+
+Antes de comenzar con la imputación de datos, es recomendable analizar si existen diferencias en las demás variables entre los participantes que tienen valores faltantes y aquellos que no. Esta evaluación es fundamental porque nos puede indicar si realmente es necesario realizar una imputación o si es viable optar por un análisis de casos completos. En otras palabras, si la distribución de las otras variables es similar tanto en el grupo con datos ausentes como en el grupo sin datos ausentes, entonces la imputación podría no ser necesaria. Para ilustrar este enfoque, vamos a examinar esta comparación en nuestro conjunto de datos, enfocándonos en las variables Colesterol y Bilirrubina.
+
+```{r}
+tabla_Colesterol = data_cirrosis |> 
+  dplyr::select(
+      Edad,
+      Sexo,
+      Albumina,
+      Bilirrubina,
+      Cobre,
+      Colesterol,
+      SGOT,
+      Trigliceridos,
+      Ascitis
+    ) |>
+  mutate(missing = factor(
+    is.na(Colesterol),
+    levels = c(FALSE, TRUE),
+    labels = c("Sin valores perdidos", "Con valores perdidos")
+  )) |> 
+  tbl_summary(
+    by = missing,
+    statistic = list(
+      all_continuous()  ~ "{mean} ({sd})",
+      all_categorical() ~ "{n}    ({p}%)")
+    ) |> 
+  modify_header(label = "**Variable**",
+                all_stat_cols() ~ "**{level}**<br>N = {n} ({style_percent(p, digits=1)}%)") |> 
+  modify_caption("Características de los participantes segun valor perdido") |> 
+  bold_labels()
+
+tabla_Bilirrubina = data_cirrosis |> 
+  dplyr::select(
+      Edad,
+      Sexo,
+      Albumina,
+      Bilirrubina,
+      Cobre,
+      Colesterol,
+      SGOT,
+      Trigliceridos,
+      Ascitis
+    ) |>
+  mutate(missing = factor(
+    is.na(Bilirrubina),
+    levels = c(FALSE, TRUE),
+    labels = c("Sin valores perdidos", "Con valores perdidos")
+  )) |> 
+  tbl_summary(
+    by = missing,
+    statistic = list(
+      all_continuous()  ~ "{mean} ({sd})",
+      all_categorical() ~ "{n}    ({p}%)")
+    ) |> 
+  modify_header(label = "**Variable**",
+                all_stat_cols() ~ "**{level}**<br>N = {n} ({style_percent(p, digits=1)}%)") |> 
+  modify_caption("Características de los participantes segun valor perdido") |> 
+  bold_labels()
+
+tabla <- tbl_merge(
+  tbls = list(tabla_Colesterol, tabla_Bilirrubina),
+  tab_spanner = c("**Colesterol**", "**Bilirrubina**")
+)
+```
+
+```{r}
+tabla
+```
+
+Nota que el promedio y desviación estandard, para algunas variables, varían en la comparación del grupo con variables perdidas y completas.
+
+# **`¿Qué variables debo incluir en el proceso de imputación?`**
+
+Es fundamental incluir en el modelo de imputación todas las variables que se emplearán en los análisis posteriores, incluso aquellas que no contienen valores faltantes. Esto se debe a que el modelo de imputación debe ser tan detallado y completo como el análisis final que se desea realizar; de lo contrario, se corre el riesgo de perder información valiosa que aportan las demás variables. Además, aunque algunas variables no tengan datos ausentes, su inclusión es beneficiosa porque proporcionan información adicional que mejora la precisión en la estimación de los valores imputados. Por último, es importante asegurarse de que las variables categóricas estén definidas como factores en R. El siguiente código muestra cómo seleccionar las variables y convertir la variable `Ascitis` en factor para este propósito.
+
+```{r}
+input_data =
+  data_cirrosis |>
+    dplyr::select(
+      Edad,
+      Sexo,
+      Albumina,
+      Bilirrubina,
+      Cobre,
+      Colesterol,
+      SGOT,
+      Trigliceridos,
+      Ascitis
+    ) |> 
+  mutate(Ascitis = as.factor(Ascitis))
+```
+
+# `La función mice() para imputar datos`
+
+La función **`mice()`** es parte del paquete **`mice`** en R y se utiliza para realizar **imputación múltiple** de datos faltantes en conjuntos de datos. Es una de las técnicas más populares y robustas para manejar valores ausentes, especialmente cuando los datos faltan de manera no completamente aleatoria.
+
+**¿Qué hace `mice()`?**
+
+-   Genera múltiples conjuntos de datos completos imputando los valores faltantes mediante modelos estadísticos iterativos.
+
+-   Cada variable con datos faltantes se modela condicionalmente en función de las demás variables, utilizando un enfoque llamado **Ecuaciones Encadenadas** (Chained Equations).
+
+-   Los múltiples conjuntos imputados permiten reflejar la incertidumbre asociada a la imputación y mejorar la validez estadística de los análisis posteriores.
+
+**1. Número de imputaciones con `m`**
+
+-   *¿Qué es?:* El argumento **`m`** indica cuántos conjuntos completos de datos imputados se van a generar. Por ejemplo, si **`m = 5`**, **`mice()`** creará cinco versiones diferentes del dataset, cada una con valores imputados distintos para los datos faltantes.
+
+-   *¿Por qué es importante?:*La imputación múltiple refleja la incertidumbre inherente a la estimación de los valores faltantes. En lugar de imputar un solo valor (que puede subestimar la variabilidad), se generan varios conjuntos para capturar esta incertidumbre. Luego, los análisis estadísticos se realizan en cada conjunto y se combinan los resultados para obtener estimaciones más robustas y confiables.
+
+-   *Recomendación práctica:* Usualmente se recomienda usar al menos 5 imputaciones (**`m = 5`**), aunque en algunos casos se pueden usar más para mejorar la precisión.
+
+**2. Semilla (`seed`) para reproducibilidad**
+
+-   *¿Qué es?*La semilla es un valor numérico que se utiliza para inicializar el generador de números aleatorios en R.
+
+-   *¿Por qué es importante? L*a imputación múltiple involucra procesos aleatorios (por ejemplo, seleccionar valores para imputar). Al establecer una semilla fija, garantizamos que los resultados sean reproducibles, es decir, que al ejecutar el mismo código varias veces obtengamos los mismos conjuntos imputados. Esto es fundamental para la transparencia y la validación de los análisis.
+
+**3. Método de imputación con `method`**
+
+-   *¿Qué es?*El argumento **`method`** permite especificar el método estadístico que se usará para imputar cada variable con valores faltantes.
+
+-   *Métodos comunes:*
+
+    -   **`"pmm"`** (Predictive Mean Matching):
+
+        -   Se usa para variables continuas o numéricas.
+
+        -   Imputa valores observados reales que son similares a los predichos por un modelo de regresión, evitando imputar valores imposibles o poco plausibles.
+
+        -   Es uno de los métodos más recomendados para variables continuas.
+
+    -   **`"logreg"`** (Regresión logística):
+
+        -   Se usa para variables binarias (dos categorías, por ejemplo, 0/1 o Sí/No).
+
+        -   Modela la probabilidad de que la variable tome un valor particular y luego asigna valores imputados basados en esta probabilidad.
+
+-   *Variables sin valores faltantes:* Para las variables que no tienen datos ausentes, se coloca una cadena vacía **`""`** en el vector de métodos para indicar que no se realizará imputación sobre ellas.
+
+-   El conjunto de datos tiene 9 variables en total.
+
+-   De esas, solo 3 contienen valores faltantes que necesitan ser imputados.
+
+-   El orden de las variables es importante porque el vector que define los métodos de imputación debe coincidir en longitud y orden con las columnas del dataset.
+
+-   Por ejemplo, si la variable 1 es continua y tiene datos faltantes, se le asigna **`"pmm"`**. Si la variable 2 es binaria con datos faltantes, se le asigna **`"logreg"`**. Si la variable 3 no tiene datos faltantes, se le asigna **`""`**.
+
+```{r}
+names(input_data)
+```
+
+```{r}
+data_imputada =
+  mice(
+    input_data,
+    m = 20,
+    method = c(
+      "",
+      "",
+      "",
+      "pmm",
+      "",
+      "pmm",
+      "",
+      "",
+      "logreg"),
+    maxit = 20,
+    seed = 3,
+    print = F
+    )
+```
+
+```{r}
+data_imputada
+```
+
+El resultado del proceso de imputación se ha almacenado en el objeto `data_imputada`, que es de la clase `mids` (conjunto de datos imputados múltiples). Este objeto indica que se realizaron 20 imputaciones, muestra el método de imputación aplicado a cada variable y presenta una matriz que detalla qué variables se utilizaron para predecir los valores faltantes en otras variables.
+
+# **`Analizando los datos imputados`**
+
+Antes de realizar análisis adicionales sobre el conjunto de datos imputado, es importante explorar los valores completados. Idealmente, los datos imputados deben ser coherentes con los valores observados. Esto puede visualizarse mediante un gráfico de caja que compare la distribución de los valores imputados (de las 20 imputaciones) con los originales sin imputar.
+
+**Para la variable colesterol**
+
+```{r}
+ggmice(data_imputada, aes(x = .imp, y = Colesterol)) +
+  geom_jitter(height = 0, width = 0.25) +
+  geom_boxplot(width = 0.5, size = 1, alpha = 0.55, outlier.shape = NA) +
+  labs(x = "Imputation number")
+```
+
+**Para la variable bilirrubina**
+
+```{r}
+ggmice(data_imputada, aes(x = .imp, y = Bilirrubina)) +
+  geom_jitter(height = 0, width = 0.25) +
+  geom_boxplot(width = 0.5, size = 1, alpha = 0.55, outlier.shape = NA) +
+  labs(x = "Imputation number")
+```
+
+-   **ggmice():** Función del paquete mice que convierte automáticamente el objeto mids a formato largo y lo pasa a ggplot.
+
+-   **aes(x = .imp, y = Bilirrubina):** Asigna el número de imputación al eje x y la variable bilirrubina al eje y.
+
+-   **geom_jitter()**: Agrega puntos individuales con un pequeño desplazamiento horizontal para evitar superposición.
+
+-   **geom_boxplot()**: Agrega los boxplots por imputación.
+
+-    **outlier.shape = NA**: Oculta los puntos atípicos del boxplot para no duplicarlos con jitter.
+
+Para evaluar la plausibilidad de los valores imputados, se elaboró un gráfico que muestra la distribución de Bilirrubina en cada una de las 20 imputaciones. Mediante boxplots y puntos individuales, se puede visualizar cómo varía esta variable entre imputaciones y comprobar que los valores generados siguen una distribución coherente con los datos observados.
+
+```{r}
+data_imputada_l <- complete(data_imputada, "long", include = TRUE)
+```
+
+**Explicación:**
+
+-   **complete()**: Función del paquete mice que extrae los datos imputados.
+
+-   **"long"**: Especifica que quieres el formato **largo**, donde cada imputación es una fila separada.
+
+-   **include = TRUE**: Incluye también los datos originales sin imputar (.imp = 0) para comparación.
+
+```{r}
+data_imputada_l <- data_imputada_l %>% 
+  mutate(imputed = .imp > 0,
+         imputed = factor(imputed,
+                          levels = c(F,T),
+                          labels = c("Observado", "Imputado")))
+
+prop.table(table(data_imputada_l$Ascitis,
+                 data_imputada_l$imputed),
+           margin = 2)
+```
+
+**Explicacion:**
+
+-   Crea una nueva variable llamada **imputed** que indica si un valor fue imputado (.imp \> 0) o no (.imp == 0).
+
+-   Convierte esa variable a un **factor** con etiquetas más legibles: "Observado" y "Imputado".
+
+-   Calcula una **tabla de proporciones condicionales** para la variable categórica **Ascitis** comparando la distribución entre valores observados e imputados.
+
+-   margin = 2 indica que las proporciones se calculan por columnas (es decir, dentro de cada grupo: Observado o Imputado).
+
+Para evaluar la coherencia de la imputación en variables categóricas, se comparó la distribución de frecuencias relativas entre los datos observados y los imputados. En este caso, se analizó la variable *Ascitis* mediante una tabla de proporciones condicionales, construida a partir de los datos en formato largo.
+
+# `Procedimientos adicionales luego de la imputación`
+
+Una vez completado el proceso de imputación múltiple, es fundamental llevar a cabo ciertos procedimientos adicionales antes de aplicar análisis estadísticos finales. Estos pasos aseguran la validez y robustez de los resultados obtenidos.
+
+Entre las acciones recomendadas se encuentran:
+
+-   **Evaluar la plausibilidad de los valores imputados**, comparando su distribución con la de los datos observados mediante gráficos o tablas.
+
+-   **Verificar la convergencia del algoritmo de imputación**, revisando que las cadenas de imputación hayan estabilizado a través de gráficos de trazado (trace plots).
+
+-   **Ajustar modelos estadísticos** de interés en cada uno de los conjuntos imputados usando la función `with()`.
+
+-   **Combinar los resultados** de los modelos utilizando la función `pool()`, la cual aplica las reglas de Rubin para obtener estimaciones integradas (medias, errores estándar, intervalos de confianza, etc.).
+
+El procedimiento estándar para realizar un análisis de regresión después de la imputación consiste en utilizar la función \`with()\` para ajustar el modelo de regresión al objeto \`mids\` (por ejemplo, \`data_imputada\`). Posteriormente, se emplea la función \`pool()\` para obtener los resultados combinados, como se suele presentar en la sección de resultados.
+
+```{r}
+
+tabla_multi <-
+  data_imputada |> 
+  with(glm(Ascitis~ Edad + Sexo + Albumina+ 
+             Bilirrubina+ Cobre+ Colesterol+ SGOT+ Trigliceridos,
+           family = binomial(link = "logit"))) |> 
+  tbl_regression(exponentiate = TRUE,
+                 label = list(
+                   Sexo ~ "Sexo",
+                   Albumina ~ "Albumina (g/dL)",
+                   Bilirrubina ~ "Bilirrubina (mg/dL)",
+                   Cobre ~ "Cobre",
+                   Colesterol ~ "Colesterol (mg/dL)",
+                   SGOT ~ "SGOT (U/L)",
+                   Trigliceridos ~ "Triglicéridos (mg/dL)")) |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**OR ajustado**", p.value = "**p valor** ")
+```
+
+**Interpretacion paso a paso:**
+
+1\. **Ajusta un modelo de regresión logística** sobre los 20 datasets imputados:
+
+-   **Variable dependiente**: `Ascitis`
+
+-   **Predictores**: Edad, Sexo, Albumina, etc.
+
+2.Usa `tbl_regression()` de `gtsummary` para crear una **tabla de resultados**:
+
+-   `exponentiate = TRUE`: muestra Odds Ratios en lugar de coeficientes logarítmicos.
+
+-   `label = list(...)`: personaliza los nombres de las variables en la tabla.
+
+3.Resalta los valores **estadísticamente significativos** (`bold_p`) si `p < 0.05`.
+
+4.ambia los encabezados de la tabla:
+
+-   `estimate` → "**OR ajustado**"
+
+-   `p.value` → "**p valor**"
+
+```{r}
+tabla_multi
+```
+
+### ¿Qué incluye esta tabla?
+
+Tu objeto `tabla_multi` contiene una tabla con:
+
+-   **Variables independientes (predictoras)** listadas en filas.
+
+-   **OR ajustado**: Odds Ratios con IC 95%, ya que usaste `exponentiate = TRUE`.
+
+-    **p valor**: valores p asociados a cada predictor.
+
+-   Variables con `p < 0.05` están resaltadas en **negrita**, gracias a `bold_p(t = 0.05)`.
+
+La siguiente tabla resume los resultados del modelo de regresión logística multivariado, mostrando las razones de odds ajustadas (OR) con sus respectivos intervalos de confianza del 95% para cada variable explicativa. Las asociaciones estadísticamente significativas (p \< 0.05) se indican en negrita.
